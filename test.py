@@ -7,6 +7,9 @@ from sklearn.metrics import mean_squared_error
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.preprocessing import OneHotEncoder
 import numpy as np
+from category_encoders import TargetEncoder
+from sklearn.pipeline import make_pipeline
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 # List of file paths for your CSV files
 file_paths = ['test.csv', 'train.csv', 'product_descriptions.csv', 'attributes.csv']  # Add all your file paths here
@@ -72,60 +75,40 @@ print("The five most occurring brands in the attributes data and their frequenci
 for brand, frequency in top_brands.items():
     print("Brand:", brand, "| Frequency:", frequency)
 
-from category_encoders import TargetEncoder
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error
-from sklearn.model_selection import train_test_split
-import numpy as np
-import pandas as pd
 
-# Assuming dfs['train.csv'] is your DataFrame
-# Features (X) and Labels (y)
-import pandas as pd
+df_train = dfs['train.csv']
+df_test = dfs['test.csv']
 
-# Load the attributes data
 attributes = pd.read_csv('attributes.csv')
 # Before combining 'name' and 'value', convert them to strings to ensure compatibility
 attributes['combined'] =  attributes['value'].astype(str)
 
 attributes_combined = attributes.groupby('product_uid')['combined'].apply(lambda x: ' | '.join(x)).reset_index()
 # Merge the main dataset with the combined attributes
-merged_data = pd.merge(dfs['train.csv'], attributes_combined, on='product_uid', how='left')
-print(merged_data.head(5))
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.metrics import mean_squared_error
-from sklearn.pipeline import make_pipeline
-import numpy as np
+merged_data = pd.merge(df_train, attributes_combined, on='product_uid', how='left')
 
-# Define your feature and target variables
-X = merged_data[['combined','id']]  # 'combined' is your new aggregated attribute feature
-y = merged_data['relevance']
+# Features (X)
+X_train = merged_data[['search_term', 'combined','product_title']]
+X_test = merged_data[['search_term', 'combined','product_title']]  
 
-# Splitting the dataset
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+# Labels (y)
+y_train = merged_data['relevance']
 
-# You might need to fill NaN values for text processing
-X_train['combined'] = X_train['combined'].fillna('')
-X_test['combined'] = X_test['combined'].fillna('')
+# Train-test split
+X_train_split, X_test_split, y_train_split, y_test_split = train_test_split(X_train, y_train, test_size=0.2, random_state=42)
 
-# Example: Using TfidfVectorizer for the 'combined' column and a RandomForestRegressor for prediction
-tfidf = TfidfVectorizer(stop_words='english', max_features=2)  # Adjust parameters as needed
+# Initialize and fit the TargetEncoder
+encoder = TargetEncoder()
+X_train_encoded = encoder.fit_transform(X_train_split, y_train_split)
+X_test_encoded = encoder.transform(X_test_split)
 
-# Example: Assuming a way to apply TfidfVectorizer to 'combined' and using existing features
-# In practice, you'll need to properly combine these features, potentially using FeatureUnion or a custom transformer
+# Training the model with encoded features
+model_target_encoder = RandomForestRegressor(random_state=42)
+model_target_encoder.fit(X_train_encoded, y_train_split)
 
-# Fitting the TF-IDF on the combined column (for simplicity, this example does not combine with other features)
-X_train_tfidf = tfidf.fit_transform(X_train['combined'])
-X_test_tfidf = tfidf.transform(X_test['combined'])
+# Making predictions with the model using TargetEncoder
+y_pred_target_encoder = model_target_encoder.predict(X_test_encoded)
+rmse_target_encoder = np.sqrt(mean_squared_error(y_test_split, y_pred_target_encoder))
 
-# Training the RandomForestRegressor (consider using a pipeline for a more elegant solution)
-model = RandomForestRegressor(random_state=42)
-model.fit(X_train_tfidf, y_train)
-
-# Making predictions and evaluating
-y_pred = model.predict(X_test_tfidf)
-rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-print(f"Root Mean Squared Error (RMSE): {rmse}")
+print(f"Root Mean Squared Error (RMSE) using Random Forest and TargetEncoder: {rmse_target_encoder}")
 
