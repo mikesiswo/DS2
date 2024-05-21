@@ -2,6 +2,11 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestRegressor, BaggingRegressor
 from nltk.stem.snowball import SnowballStemmer
+import time
+from sklearn.metrics import mean_squared_error
+
+# Measure start time
+start_time = time.time()
 
 stemmer = SnowballStemmer('english')
 
@@ -49,4 +54,27 @@ clf = BaggingRegressor(rf, n_estimators=45, max_samples=0.1, random_state=25)
 clf.fit(X_train, y_train)
 y_pred = clf.predict(X_test)
 
+# Calculate RMSE
 pd.DataFrame({"id": id_test, "relevance": y_pred}).to_csv('submission.csv',index=False)
+
+y_true = df_test['relevance'].values
+# Drop NaN values from y_true and corresponding rows in X_test and y_pred
+nan_indices = np.isnan(y_true)
+if np.any(nan_indices):
+    print("NaN values found in y_true at indices:", np.where(nan_indices)[0])
+    # Remove corresponding rows from X_test, y_true, and y_pred
+    y_true = y_true[~nan_indices]
+    X_test = X_test[~nan_indices]
+    y_pred = y_pred[~nan_indices]
+# Calculate RMSE using true relevance scores from the test set
+rmse = mean_squared_error(y_true, y_pred, squared=False)
+
+# Measure end time
+end_time = time.time()
+
+# Calculate training time
+training_time = end_time - start_time
+
+# Output RMSE and time
+print("RMSE:", rmse)
+print("Training Time:", training_time, "seconds")

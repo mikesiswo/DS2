@@ -65,31 +65,32 @@ id_column = dfs['train.csv']['id']
 unique_values_count = len(id_column.unique())
 print("Number of rows without duplicates in the 'id' column:", unique_values_count)
 
+print("----------------------------")
+
 product_column = dfs['train.csv']['product_uid']
 unique_values_count_product = len(product_column.unique())
 print("Number of rows without duplicates in the 'product' column:", unique_values_count_product)
 
+print("----------------------------")
+
 # Get the 2 most occurring products
 top_product_uids = dfs['train.csv']['product_uid'].value_counts().head(2)
-
 # Preprocess the attributes csv to avoid NaN values
 dfs['attributes'].dropna(inplace=True)
-
 for product_uid, frequency in top_product_uids.items():
     # Filter rows in attributes where 'name' contains the current product_uid
     product_attributes = dfs['attributes'][dfs['attributes']['product_uid'].astype(str).str.contains(str(product_uid))]
-    
     # Filter rows where 'name' contains 'MFG Brand Name'
     brands = product_attributes['name'].str.contains("MFG Brand Name")
-    
     # Get corresponding 'value' column (product names)
     product_name = product_attributes[brands]['value']
-    
     # Print the product_uid and its corresponding product name
     print("Product UID:", product_uid)
     print("Product Name:", product_name.values)
     print("Frequency:", frequency)
     
+print("----------------------------")
+
 # Get descriptive statistics for the 'relevance' column
 relevance_stats = dfs['train.csv']['relevance'].describe()
 mean_relevance = relevance_stats['mean']
@@ -108,6 +109,8 @@ plt.xlabel('Relevance')
 plt.ylabel('Frequency')
 plt.savefig('histogram.png')
 
+print("----------------------------")
+
 # Get the five most occurring brands in the attributes data and their frequencies
 # Filter rows where 'name' contains 'MGF Brand Name'
 brands = dfs['attributes']['name'].str.contains("MFG Brand Name")
@@ -117,6 +120,8 @@ top_brands = brand_names.value_counts().head(5)
 print("The five most occurring brands in the attributes data and their frequencies are:")
 for brand, frequency in top_brands.items():
     print("Brand:", brand, "| Frequency:", frequency)
+    
+print("----------------------------")
 
 # Preprocess text in the 'search_term' column
 df_train = dfs['train.csv']
@@ -134,7 +139,7 @@ descriptions_uid = descriptions.groupby('product_uid')['product_description'].fi
 merged_data = pd.merge(merged_data, descriptions_uid, on='product_uid', how='left')
 
 # Features (X)
-X_train = merged_data[['search_term','combined','product_title','product_description']]
+X_train = merged_data[['search_term','combined','product_title','product_description','product_uid']]
 
 # Labels (y)
 y_train = merged_data['relevance']
@@ -168,8 +173,24 @@ end_time = time.time()
 # Calculate the processing time
 processing_time = end_time - start_time
 # Print the processing time
-print("Processing time:", processing_time, "seconds")
+print("Processing time:", processing_time, "seconds") 
 
+print("----------------------------")
+
+# Accessing Feature Weights
+ridge_feature_weights = best_model.coef_
+
+# Storing Feature Names
+feature_names = X_train_encoded.columns.tolist()
+
+# Sorting
+sorted_features = sorted(zip(feature_names, ridge_feature_weights), key=lambda x: x[1], reverse=True)
+
+# Top-5 Most Important Features
+print("Top 5 most important features:")
+for i, (feature, weight) in enumerate(sorted_features[:5]):
+    weight_float = '{:.2f}'.format(weight)
+    print(f"{i}. Feature: {feature} | Weight: {weight_float}")
 
 #----------------------------
 # RIDGE REGRESSION 
