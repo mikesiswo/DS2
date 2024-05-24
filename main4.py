@@ -118,44 +118,169 @@ X_test_encoded = encoder.transform(X_test_split)
 # Define the base models
 base_models = [
     ('xgboost', xgb.XGBRegressor()),
-    ('lightgbm', lgb.LGBMRegressor()),
-    ('catboost', CatBoostRegressor(silent=True)),
-    ('bagging', BaggingRegressor(n_estimators=50, random_state=42))
+    ('lightgbm', lgb.LGBMRegressor())
 ]
 
-# Create the Stacking Regressor with base models and final estimator
-stacking_model = StackingRegressor(
-    estimators=base_models,
-    final_estimator=Ridge()
-)
-from scipy.stats import randint, uniform
-# Perform hyperparameter tuning for the stacking model
-param_dist_stacking = {
-    'final_estimator__alpha': uniform(0.1, 10)
-}
+# # Create the Stacking Regressor with base models and final estimator
+# stacking_model = StackingRegressor(
+#     estimators=base_models,
+#     final_estimator=Ridge()
+# )
+#---------------------------------------------------------------------------------------------------------
+# STACKING MODELS BASE - META :
+# Processing time: 80.89748001098633 seconds
+# Final RMSE on test set:  0.5328690801039294
+# ----------------------------
+# from scipy.stats import randint, uniform
+# # Perform hyperparameter tuning for the stacking model
+# param_dist_stacking = {
+#     'final_estimator__alpha': uniform(0.1, 10)
+# }
 
-random_search_stacking = RandomizedSearchCV(estimator=stacking_model, param_distributions=param_dist_stacking, n_iter=5, cv=5, scoring='neg_mean_squared_error', random_state=42, verbose=1)
-random_search_stacking.fit(X_train_encoded, y_train_split)
+# random_search_stacking = RandomizedSearchCV(estimator=stacking_model, param_distributions=param_dist_stacking, n_iter=5, cv=5, scoring='neg_mean_squared_error', random_state=42, verbose=1)
+# random_search_stacking.fit(X_train_encoded, y_train_split)
 
-# Print the best parameters and the corresponding RMSE for Stacking Regressor
-best_stacking_model = random_search_stacking.best_estimator_
-print("Best parameters for Stacking Regressor: ", random_search_stacking.best_params_)
-best_rmse_stacking = np.sqrt(-random_search_stacking.best_score_)
-print("Best RMSE for Stacking Regressor: ", best_rmse_stacking)
+# # Make predictions on the test set
+# y_pred = random_search_stacking.best_estimator_.predict(X_test_encoded)
+#---------------------------------------------------------------------------------------------------------
+# VOTING REGRESSOR : 
+# RMSE: 0.5346767043946465
+# Total time :  4.98853611946106
+# ----------------------------
+# from sklearn.ensemble import VotingRegressor
+# # Create the Voting Regressor with base models
+# voting_model = VotingRegressor(estimators=base_models)
 
-# Capture the end time
+# # Fit the voting model
+# voting_model.fit(X_train_encoded, y_train_split)
+
+# # Make predictions on the test set
+# y_pred = voting_model.predict(X_test_encoded)
+#---------------------------------------------------------------------------------------------------------
+# Model Selection 
+# RMSE: 0.5322716923040763
+# Total time :  18.83643889427185
+# ----------------------------
+# from scipy.stats import randint
+# # Define the models and their hyperparameter distributions
+# models = {
+#     'xgboost': {
+#         'model': xgb.XGBRegressor(),
+#         'params': {
+#             'n_estimators': randint(50, 200),
+#             'max_depth': randint(3, 10),
+#             'learning_rate': uniform(0.01, 0.3)
+#         }
+#     },
+#     'lightgbm': {
+#         'model': lgb.LGBMRegressor(),
+#         'params': {
+#             'n_estimators': randint(50, 200),
+#             'max_depth': randint(3, 10),
+#             'learning_rate': uniform(0.01, 0.3)
+#         }
+#     }
+# }
+
+# best_model = None
+# best_score = float('inf')
+# best_model_name = ""
+
+# for name, model_info in models.items():
+#     print(f"Training {name} model...")
+#     random_search = RandomizedSearchCV(estimator=model_info['model'], param_distributions=model_info['params'], n_iter=5, cv=5, scoring='neg_mean_squared_error', random_state=42, verbose=1)
+#     random_search.fit(X_train_encoded, y_train_split)
+    
+#     # Compare performance
+#     score = -random_search.best_score_
+#     print(f"Best score for {name}: {score}")
+    
+#     if score < best_score:
+#         best_score = score
+#         best_model = random_search.best_estimator_
+#         best_model_name = name
+
+# print(f"Best model: {best_model_name} with score: {best_score}")
+
+# # Make predictions on the test set
+# y_pred = best_model.predict(X_test_encoded)
+#---------------------------------------------------------------------------------------------------------
+# # Random SubSpace Method 
+# RMSE: 0.5462755234541994
+# Total time :  661.3004431724548
+# ----------------------------
+# # Define the base models with Random Subspace Method
+# base_models = [
+#     ('xgboost', BaggingRegressor(estimator=xgb.XGBRegressor(), n_estimators=10, max_features=0.8, random_state=42)),
+#     ('lightgbm', BaggingRegressor(estimator=lgb.LGBMRegressor(), n_estimators=10, max_features=0.8, random_state=42))
+# ]
+
+# # Create the Bagging Regressor with base models
+# random_subspace_model = StackingRegressor(
+#     estimators=base_models,
+#     final_estimator=Ridge()
+# )
+
+# # Perform hyperparameter tuning for the final estimator in the stacking model
+# param_dist_stacking = {
+#     'final_estimator__alpha': uniform(0.1, 10)
+# }
+
+# random_search_subspace = RandomizedSearchCV(estimator=random_subspace_model, param_distributions=param_dist_stacking, n_iter=5, cv=5, scoring='neg_mean_squared_error', random_state=42, verbose=1)
+# random_search_subspace.fit(X_train_encoded, y_train_split)
+
+# # Make predictions on the test set
+# y_pred = random_search_subspace.best_estimator_.predict(X_test_encoded)
+#---------------------------------------------------------------------------------------------------------
+# Average Prediction Method 
+# RMSE: 0.5346767043946465
+# Total time :  5.000196933746338
+# ----------------------------
+# # Train base models and collect predictions
+# predictions = []
+
+# for name, model in base_models:
+#     model.fit(X_train_encoded, y_train_split)
+#     pred = model.predict(X_test_encoded)
+#     predictions.append(pred)
+
+# # Average the predictions
+# average_pred = np.mean(predictions, axis=0)
+
+# # Calculate RMSE
+# rmse = np.sqrt(mean_squared_error(y_test_split, average_pred))
+# print(f'RMSE: {rmse}')
+
+# Calculate RMSE
+rmse = np.sqrt(mean_squared_error(y_test_split, y_pred))
+print(f'RMSE: {rmse}')
+# Capture the start time
 end_time = time.time()
-# Calculate the processing time
-processing_time = end_time - start_time
-# Print the processing time
-print("Processing time:", processing_time, "seconds") 
+print("Total time : ",end_time-start_time)
 
-print("----------------------------")
 
-# Evaluate the final model on the test set to get the RMSE
-y_pred = best_stacking_model.predict(X_test_encoded)
-final_rmse = np.sqrt(mean_squared_error(y_test_split, y_pred))
-print("Final RMSE on test set: ", final_rmse)
+
+
+
+# # Print the best parameters and the corresponding RMSE for Stacking Regressor
+# best_stacking_model = random_search_stacking.best_estimator_
+# print("Best parameters for Stacking Regressor: ", random_search_stacking.best_params_)
+# best_rmse_stacking = np.sqrt(-random_search_stacking.best_score_)
+# print("Best RMSE for Stacking Regressor: ", best_rmse_stacking)
+
+# # Capture the end time
+# end_time = time.time()
+# # Calculate the processing time
+# processing_time = end_time - start_time
+# # Print the processing time
+# print("Processing time:", processing_time, "seconds") 
+
+# print("----------------------------")
+
+# # Evaluate the final model on the test set to get the RMSE
+# y_pred = best_stacking_model.predict(X_test_encoded)
+# final_rmse = np.sqrt(mean_squared_error(y_test_split, y_pred))
+# print("Final RMSE on test set: ", final_rmse)
 
 
 #--------------------------------------------------------------------------------
